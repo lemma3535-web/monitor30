@@ -1,0 +1,20 @@
+name: 30인 모닝 브리핑
+
+on:
+  schedule:
+    - cron: '0 23 * * *'
+  workflow_dispatch:
+
+jobs:
+  briefing:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Python 설정
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+      - name: 패키지 설치
+        run: pip install requests feedparser schedule
+      - name: 브리핑 실행
+        run: python monitor_30.py
