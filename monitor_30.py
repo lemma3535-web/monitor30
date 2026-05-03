@@ -100,7 +100,7 @@ Output ONLY this JSON in Korean language (summary must be in Korean):
 {{"has_news": true, "summary": "한국어로 핵심 발언 요약 2줄", "importance": 1~10 숫자만, "direction": "긍정 또는 부정 또는 중립", "korea_sector": "한국 영향 섹터 한국어로", "action": "매수검토 또는 매도검토 또는 관망"}}
 
 Rules:
-- summary MUST be written in Korean
+- summary는 반드시 한국어로 작성할 것
 - importance: investment/contract=8-10, CEO statement=5-7, mention=1-4
 - Output only JSON, no other text"""
 
