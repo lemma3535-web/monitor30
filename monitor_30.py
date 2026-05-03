@@ -4,7 +4,6 @@
 import requests
 import json
 import feedparser
-import schedule
 import time
 from datetime import datetime, timedelta
 import urllib.parse
@@ -89,16 +88,28 @@ def analyze_with_gemini(person, news_list):
     if not news_list:
         return {"has_news": False, "summary": "발언 없음", "importance": 0,
                 "direction": "없음", "korea_sector": "", "action": ""}
+    
     news_text = "\n".join([f"- [{n['published']}] {n['title']}\n  {n['summary']}" for n in news_list])
-    prompt = f"""다음은 {person['name']} ({person['sector']}) 관련 최근 뉴스입니다.
+    
+    prompt = f"""You are a Korean stock market analyst. Analyze news about {person['name']} ({person['sector']}).
 
+News:
 {news_text}
 
-JSON만 출력하세요:
-{{"has_news": true, "summary": "한국어요약2줄", "importance": 숫자, "direction": "긍정또는부정또는중립", "korea_sector": "한국섹터", "action": "매수검토또는매도검토또는관망"}}"""
+Output ONLY this JSON in Korean language (summary must be in Korean):
+{{"has_news": true, "summary": "한국어로 핵심 발언 요약 2줄", "importance": 1~10 숫자만, "direction": "긍정 또는 부정 또는 중립", "korea_sector": "한국 영향 섹터 한국어로", "action": "매수검토 또는 매도검토 또는 관망"}}
+
+Rules:
+- summary MUST be written in Korean
+- importance: investment/contract=8-10, CEO statement=5-7, mention=1-4
+- Output only JSON, no other text"""
+
     try:
         url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={GEMINI_API_KEY}"
-        payload = {"contents": [{"parts": [{"text": prompt}]}], "generationConfig": {"temperature": 0.1, "maxOutputTokens": 500}}
+        payload = {
+            "contents": [{"parts": [{"text": prompt}]}],
+            "generationConfig": {"temperature": 0.1, "maxOutputTokens": 500}
+        }
         resp = requests.post(url, json=payload, timeout=15)
         resp.raise_for_status()
         text = resp.json()["candidates"][0]["content"]["parts"][0]["text"]
@@ -108,7 +119,8 @@ JSON만 출력하세요:
         return result
     except Exception as e:
         print(f"[gemini error] {person['name']}: {e}")
-        return {"has_news": True, "summary": news_list[0]["title"], "importance": 0, "direction": "알수없음", "korea_sector": "", "action": "관망"}
+        return {"has_news": True, "summary": news_list[0]["title"],
+                "importance": 0, "direction": "알수없음", "korea_sector": "", "action": "관망"}
 
 def send_telegram(message):
     try:
@@ -126,7 +138,7 @@ def run_briefing():
         news = fetch_news(person["name"])
         analysis = analyze_with_gemini(person, news)
         results.append({"person": person, "news": news, "analysis": analysis})
-        time.sleep(1.5)
+        time.sleep(2)
 
     today = datetime.now().strftime("%Y-%m-%d")
     yesterday = (datetime.now() - timedelta(days=1)).strftime("%Y-%m-%d")
@@ -144,9 +156,11 @@ def run_briefing():
         imp  = a.get("importance", 0)
         d    = a.get("direction", "")
         korea = KOREA_MAPPING.get(name, a.get("korea_sector", ""))
-        emoji = {"긍정":"📈","부정":"📉","중립":"➡️"}.get(d,"❓")
+        emoji = {"긍정": "📈", "부정": "📉", "중립": "➡️"}.get(d, "❓")
         stars = "⭐" * min(imp, 5) if imp > 0 else ""
-        msg += f"\n👤 <b>{name}</b>\n{emoji} {a.get('summary','')}\n{stars} {imp}/10 | {a.get('action','')}\n"
+        msg += f"\n👤 <b>{name}</b> ({r['person']['sector']})\n"
+        msg += f"{emoji} {a.get('summary', '')}\n"
+        msg += f"{stars} {imp}/10 | {a.get('action', '')}\n"
         if korea:
             msg += f"🇰🇷 {korea}\n"
         msg += f"{'─'*30}\n"
@@ -157,7 +171,6 @@ def run_briefing():
     for i in range(0, len(msg), 4000):
         send_telegram(msg[i:i+4000])
         time.sleep(1)
-
     print("[완료]")
 
 if __name__ == "__main__":
